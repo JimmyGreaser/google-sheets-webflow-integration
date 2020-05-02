@@ -2,44 +2,55 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('API Menu')
       .addItem('Import CJ Products','getCJProducts')
+      .addSeparator()
+      .addItem('Create Webflow Items', 'createWebflowItem')
       .addToUi();
 }
+ 
+// GLOBAL VARIABLES --------------------------------
 
-function getCJProducts() {
-  var output = [];
-  
-  // Get CJ Products
-  
-  // Write to Google Sheets
-               
-  // Authentication
-  var cjAuthenticationToken = "7n2qy7a10660seaf3d810dakkz";
-  var pid = '9210517';
-  
-  // Brand identifiers
-  var hudsonJeans = '4909284';
-  
-  // URL
-  var url = 'https://product-search.api.cj.com/v2/product-search'
+// Authentication
+var cjToken = '7n2qy7a10660seaf3d810dakkz';
+var pid = '9210517';
+var webflowToken = '5fe4061500bb0c723f15518546b6e9d3c5ee5ea6e5b32d84f7d607371353c68a';
+var webflowProductCollectionId = '5eab44282ae07d9d2a95cfe4';
+
+// URLs
+var cjGetUrl = 'https://product-search.api.cj.com/v2/product-search'
   + '?website-id=' + pid
   + '&advertiser-ids=4909284'
   + '&keywords=jeans'
   + 'serviceable-area=us'
   + 'records-per-page=100';
-  
-  // Headers
-  var headers = {
-    "Authorization": "Bearer" + " " + cjAuthenticationToken
-  };
+var webflowPostUrl = 'https://api.webflow.com/collections/'
+ + webflowProductCollectionId
+ + '/items'
+var webflowGetCollectionUrl = 'https://api.webflow.com/collections/' + webflowProductCollectionId
 
-  // Options
-  var options = {
-    "headers" : headers,
+// Headers
+var cjHeaders = {
+  "Authorization": "Bearer" + " " + cjToken
+};
+
+// Options
+var cjOptions = {
+    "headers" : cjHeaders,
     "method" : "GET",
-  };
+};
+
+// Product data array
+var output = [];
+
+
+
+
+// FUNCTIONS ---------------------------------------
+
+// Import products from CJ and write to Google Sheets. Query products through the global variable - cjGetUrl.
+function getCJProducts() {
   
-  // Fetch
-  var xml = UrlFetchApp.fetch(url, options).getContentText();
+  // Fetch data
+  var xml = UrlFetchApp.fetch(cjGetUrl, cjOptions).getContentText();
   
   // Parse
   var document = XmlService.parse(xml); //parse
@@ -47,6 +58,7 @@ function getCJProducts() {
   // Nav to part of tree and get values
   var products = document.getRootElement().getChild("products").getChildren();
   
+  // Loop through values
   for (var i = 0; i < products.length; i++) {
     // Create object and extract attribute values
     var product = {
@@ -60,7 +72,7 @@ function getCJProducts() {
       "image" : products[i].getChild("image-url").getValue()
       }
     }
-    // Push current object to output array
+    // Push object to output array
     output.push(product);
  }
     
@@ -81,26 +93,36 @@ function getCJProducts() {
    // Add the headings - delete this next line if headings not required
    outputRows.unshift(headings);
    SpreadsheetApp.getActiveSheet().getRange(1, 1, outputRows.length, outputRows[0].length).setValues(outputRows);
- } 
+ }
+  
+ Logger.log('Import successful');
+  
+};
+
+
+
+
+
+
+// Runs when a user changes the selection in a spreadsheet
+function onEdit() {
+  Logger.log('Hello');
 }
 
+// Runs when a user opens a spreadsheet, document, presentation, or form that the user has permission to edit
+function onOpen() {
+  
+} 
 
 // Will need to handle getting all data from Google Sheets
 function createWebflowItem() {
-  // Post new products to Webflow
+ // Post new products to Webflow
   // Prepare to post to Webflow
- var webflowAuthenticationToken = "5fe4061500bb0c723f15518546b6e9d3c5ee5ea6e5b32d84f7d607371353c68a";
  var productCollectionId = "5eab44282ae07d9d2a95cfe4";
- 
- // URL
- var webflowPostProduct = 'https://api.webflow.com/collections/'
- + productCollectionId
- + '/items'
- var webflowGetProduct = 'https://api.webflow.com/collections/' + productCollectionId
  
  // Headers
  var webflowHeaders = {
-    "Authorization": "Bearer" + " " + webflowAuthenticationToken,
+    "Authorization": "Bearer" + " " + webflowToken,
     "accept-version": "1.0.0",
     "Content-Type": "application/json"
  }
@@ -123,7 +145,7 @@ for (var i = 0; i < output.length; i++) {
     "muteHttpExceptions" : true
    };
  
- var webflowItem = UrlFetchApp.fetch(webflowPostProduct, postWebflowOptions);
+ var webflowItem = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
  var productId = JSON.parse(webflowItem)["_id"];
  var buy = JSON.parse(webflowItem)["buy"];
                                  
