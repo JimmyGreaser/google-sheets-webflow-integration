@@ -31,15 +31,30 @@ var webflowGetCollectionUrl = 'https://api.webflow.com/collections/' + webflowPr
 var cjHeaders = {
   "Authorization": "Bearer" + " " + cjToken
 };
+var webflowHeaders = {
+    "Authorization": "Bearer" + " " + webflowToken,
+    "accept-version": "1.0.0",
+    "Content-Type": "application/json"
+}
 
 // Options
 var cjOptions = {
     "headers" : cjHeaders,
     "method" : "GET",
 };
+var webflowGetOptions = {
+   "headers" : webflowHeaders,
+   "method" : "get",
+   "muteHttpExceptions" : true
+}
 
 // Product data array
 var output = [];
+
+
+
+
+
 
 
 
@@ -104,50 +119,32 @@ function getCJProducts() {
 
 
 
-// Runs when a user changes the selection in a spreadsheet
-function onEdit() {
-  Logger.log('Hello');
-}
 
-// Runs when a user opens a spreadsheet, document, presentation, or form that the user has permission to edit
-function onOpen() {
+ 
+
+// Post Google Sheets data to Weblow product collection
+function postSheetToWebflow() {
   
-} 
-
-// Will need to handle getting all data from Google Sheets
-function createWebflowItem() {
- // Post new products to Webflow
-  // Prepare to post to Webflow
- var productCollectionId = "5eab44282ae07d9d2a95cfe4";
- 
- // Headers
- var webflowHeaders = {
-    "Authorization": "Bearer" + " " + webflowToken,
-    "accept-version": "1.0.0",
-    "Content-Type": "application/json"
- }
- 
- // Options
- var getWebflowOptions = {
-   "headers" : webflowHeaders,
-   "method" : "get",
-   "muteHttpExceptions" : true
- }
- 
-// Logger.log(UrlFetchApp.fetch(webflowGetProduct, getWebflowOptions));
+ // Get sheet data
+  
 
 // Loop through payload to post to Webflow then retrieve newly created id and write to correct row in Google Sheet
-for (var i = 0; i < output.length; i++) {
+for (var i = 0; i < dataArray.length; i++) {
   var postWebflowOptions = {
     "headers" : webflowHeaders,
     "method" : "post",
-    "payload" : JSON.stringify(output[i]),
+    "payload" : JSON.stringify(dataArray[i]),
     "muteHttpExceptions" : true
    };
  
- var webflowItem = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
- var productId = JSON.parse(webflowItem)["_id"];
- var buy = JSON.parse(webflowItem)["buy"];
+  
+ // Store new item data
+ var product = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
+  
+ // Store product ID
+ var productId = JSON.parse(product)["_id"];
+  
+ // Find correct row and write product ID to item-id column
                                  
  SpreadsheetApp.getActive
  var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -169,6 +166,20 @@ for (var i = 0; i < output.length; i++) {
   // Copy new item-id to Google Sheet row
   
 }
+
+
+
+
+
+
+
+
+
+// Runs when a user changes the selection in a spreadsheet
+function onEdit() {
+  Logger.log('Hello');
+}
+
 
 function updateWebflowItem() {
   // Update products in Webflow
