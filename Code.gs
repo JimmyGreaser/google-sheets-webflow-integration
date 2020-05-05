@@ -4,6 +4,8 @@ function onOpen() {
       .addItem('Import CJ Products','getCJProducts')
       .addSeparator()
       .addItem('Create Webflow Items', 'createWebflowItem')
+      .addSeparator()
+      .addItem('Clear Sheet', 'clearData')
       .addToUi();
 }
  
@@ -15,13 +17,29 @@ var pid = '9210517';
 var webflowToken = '5fe4061500bb0c723f15518546b6e9d3c5ee5ea6e5b32d84f7d607371353c68a';
 var webflowProductCollectionId = '5eab44282ae07d9d2a95cfe4';
 
+// Keyword queries
+var kQuery1 = '+jeans-denim';
+var kQuery2 = '+jeans-size';
+
+// CJ Variables
+var hudsonJeans = '4909284'; // Working
+var dlJeans = '3609731'; // Not working
+var blueCream = '4484982'; // Working
+var shein = '3773223'; // Working
+var ssense = '2125713'; // Working
+var warpWeft = '5110321'; // Not working
+var zaful = '4777179'; // Working
+
 // URLs
 var cjGetUrl = 'https://product-search.api.cj.com/v2/product-search'
   + '?website-id=' + pid
-  + '&advertiser-ids=4909284'
-  + '&keywords=jeans'
-  + 'serviceable-area=us'
-  + 'records-per-page=100';
+  + '&advertiser-ids=' + ssense
+  + '&keywords=' + kQuery2
+  + '&serviceable-area=us'
+  + '&records-per-page=100'
+  + '&currency=usd'
+  + '&high-sale-price=500'
+  + '&sort-by=price';
 var webflowPostUrl = 'https://api.webflow.com/collections/'
  + webflowProductCollectionId
  + '/items'
@@ -66,7 +84,7 @@ function getCJProducts() {
   
   // Fetch data
   var xml = UrlFetchApp.fetch(cjGetUrl, cjOptions).getContentText();
-  
+    
   // Parse
   var document = XmlService.parse(xml); //parse
     
@@ -78,21 +96,25 @@ function getCJProducts() {
     // Create object and extract attribute values
     var product = {
       "fields" : {
+      "item-id" : "replace",
       "name": products[i].getChild("name").getValue(),
-      "slug": products[i].getChild("name").getValue().replace(/\s+/g, '-').replace(/,/g, '').toLowerCase(),
-      "_archived": false,
-      "_draft": false,
+      // "slug": products[i].getChild("name").getValue().replace(/\s+/g, '-').replace(/,/g, '').toLowerCase(),
+      // "_archived": false,
+      // "_draft": false,
       "price" : products[i].getChild("price").getValue(),
       "buy" : products[i].getChild("buy-url").getValue(),
-      "image" : products[i].getChild("image-url").getValue()
+      "image" : products[i].getChild("image-url").getValue(),
+      "gender" : "EDIT",
+      "advertiser" : products[i].getChild("advertiser-name").getValue()
+      // "featured" : false
       }
     }
     // Push object to output array
     output.push(product);
  }
-    
+        
  // Headings in the column order that you wish the table to appear.
- var headings = ['item-id', 'name', 'price', 'buy', 'image'];
+ var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender', 'advertiser'];
  var outputRows = [];
 
  // Loop through each member
@@ -102,12 +124,16 @@ function getCJProducts() {
      return output['fields'][heading] || '';
    }));
  });
-  
- // Write to sheets
- if (outputRows.length) {
+    
+ // Write to sheets at first blank row
+ for (var i = 0; i < outputRows.length; i++) {
    // Add the headings - delete this next line if headings not required
-   outputRows.unshift(headings);
-   SpreadsheetApp.getActiveSheet().getRange(1, 1, outputRows.length, outputRows[0].length).setValues(outputRows);
+   // outputRows[i].unshift(headings);
+   Logger.log(outputRows[i]);
+   var ss = SpreadsheetApp.getActive();
+   var sheet = ss.getSheetByName("product-sheet");
+
+   sheet.appendRow(outputRows[i]);
  }
   
  Logger.log('Import successful');
@@ -115,8 +141,13 @@ function getCJProducts() {
 };
 
 
+// Pepperjam/Ascend import
 
 
+// Impact import
+
+
+// Update from affiliate market data
 
 
 
@@ -193,11 +224,17 @@ function deleteWebflowItem() {
 
 
 function clearData() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Data');
+  
+ var ss = SpreadsheetApp.getActiveSpreadsheet();
+ var sheet = ss.getActiveSheet();
+ var dataRange = sheet.getDataRange();
+  
+  Logger.log(ss);
+  Logger.log(sheet);
+  Logger.log(dataRange);
   
   // clear out the matches and output sheets
-  var lastRow = sheet.getLastRow();
+  var lastRow = ss.getLastRow();
   if (lastRow > 1) {
     sheet.getRange(2,1,lastRow-1,1).clearContent();
   }
@@ -209,7 +246,3 @@ function clearData() {
 //  .atHour(1)
 //  .everyDays(1) // Frequency is required if you are using atHour()
 //  .create();
-
-
-
-
