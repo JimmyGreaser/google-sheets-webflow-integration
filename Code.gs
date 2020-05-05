@@ -1,14 +1,3 @@
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu('API Menu')
-      .addItem('Import CJ Products','getCJProducts')
-      .addSeparator()
-      .addItem('Create Webflow Items', 'createWebflowItem')
-      .addSeparator()
-      .addItem('Clear Sheet', 'clearData')
-      .addToUi();
-}
- 
 // GLOBAL VARIABLES --------------------------------
 
 // Authentication
@@ -19,7 +8,7 @@ var webflowProductCollectionId = '5eab44282ae07d9d2a95cfe4';
 
 // Keyword queries
 var kQuery1 = '+jeans-denim';
-var kQuery2 = '+jeans-size';
+var kQuery2 = '+jeans -size -shirt -hat -beanie';
 
 // CJ Variables
 var hudsonJeans = '4909284'; // Working
@@ -36,9 +25,10 @@ var cjGetUrl = 'https://product-search.api.cj.com/v2/product-search'
   + '&advertiser-ids=' + ssense
   + '&keywords=' + kQuery2
   + '&serviceable-area=us'
-  + '&records-per-page=100'
+  + '&records-per-page=10'
   + '&currency=usd'
   + '&high-sale-price=500'
+  + '&low-sale-price=60'
   + '&sort-by=price';
 var webflowPostUrl = 'https://api.webflow.com/collections/'
  + webflowProductCollectionId
@@ -66,47 +56,56 @@ var webflowGetOptions = {
    "muteHttpExceptions" : true
 }
 
-// Product data array
-var output = [];
-
-
-
-
-
-
 
 
 
 // FUNCTIONS ---------------------------------------
 
+// Create function menu on open
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('API Menu')
+      .addItem('Import CJ Products','getCJProducts')
+      .addSeparator()
+      .addItem('Create Webflow Items', 'postSheetToWebflow')
+      .addToUi();
+}
+
+// AFFILIATE MARKETPLACE IMPORTS ------------------
+
 // Import products from CJ and write to Google Sheets. Query products through the global variable - cjGetUrl.
 function getCJProducts() {
   
+  // Product data array
+  var output = [];
+  
   // Fetch data
   var xml = UrlFetchApp.fetch(cjGetUrl, cjOptions).getContentText();
+  
+  Logger.log(xml);
     
   // Parse
   var document = XmlService.parse(xml); //parse
     
   // Nav to part of tree and get values
   var products = document.getRootElement().getChild("products").getChildren();
+    
+  // Filter duplicate products by image URL
+  
+  
+  var productIterations = products.length;
   
   // Loop through values
-  for (var i = 0; i < products.length; i++) {
+  for (var i = 0; i < productIterations; i++) {
     // Create object and extract attribute values
     var product = {
       "fields" : {
       "item-id" : "replace",
       "name": products[i].getChild("name").getValue(),
-      // "slug": products[i].getChild("name").getValue().replace(/\s+/g, '-').replace(/,/g, '').toLowerCase(),
-      // "_archived": false,
-      // "_draft": false,
       "price" : products[i].getChild("price").getValue(),
       "buy" : products[i].getChild("buy-url").getValue(),
       "image" : products[i].getChild("image-url").getValue(),
       "gender" : "EDIT",
-      "advertiser" : products[i].getChild("advertiser-name").getValue()
-      // "featured" : false
       }
     }
     // Push object to output array
@@ -114,25 +113,23 @@ function getCJProducts() {
  }
         
  // Headings in the column order that you wish the table to appear.
- var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender', 'advertiser'];
+ var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender'];
  var outputRows = [];
 
  // Loop through each member
  output.forEach(function(output) {
-   // Add a new row to the output mapping each header to the corresponding member value.
+   // Add a new row to the output mapping each header to the corresponding member value
    outputRows.push(headings.map(function(heading) {
      return output['fields'][heading] || '';
    }));
  });
+  
+ var outputIterations = outputRows.length;
     
  // Write to sheets at first blank row
- for (var i = 0; i < outputRows.length; i++) {
-   // Add the headings - delete this next line if headings not required
-   // outputRows[i].unshift(headings);
-   Logger.log(outputRows[i]);
+ for (var i = 0; i < outputIterations; i++) {
    var ss = SpreadsheetApp.getActive();
    var sheet = ss.getSheetByName("product-sheet");
-
    sheet.appendRow(outputRows[i]);
  }
   
@@ -151,52 +148,90 @@ function getCJProducts() {
 
 
 
+
+
+
+
+// WEBFLOW -------------------------------
  
 
 // Post Google Sheets data to Weblow product collection
 function postSheetToWebflow() {
   
- // Get sheet data
+  // Product data array
+  var output = [];
   
+ // Get sheet data
+ var sheet = SpreadsheetApp.getActiveSheet().getDataRange().getValues();
+ 
+ // Remove header
+ sheet.splice(0,1);
+ 
+ // Array of arrays
+ Logger.log(sheet);
+ 
+ sheetIterations = sheet.length;
+  
+ // Loop through values
+ // Webflow schema is name, slug, _archived, _draft, price, buy, image, gender, featured - will change if you update Webflow CMS
+ for (var i = 0; i < sheetIterations; i++) {
+   // Create object and extract attribute values
+   var product = {
+     "fields" : {
+     "name": sheet[i][1],
+     "slug": sheet[i][1].replace(/\s+/g, '-').replace(/,/g, '').toLowerCase(),
+     "_archived": false,
+     "_draft": false,
+     "price" : sheet[i][2],
+     "buy" : sheet[i][3],
+     "image" : sheet[i][4],
+     "gender" : sheet[i][5],
+     "featured" : false
+     }
+   }
+   // Push object to output array
+   output.push(product);
+ }
 
-// Loop through payload to post to Webflow then retrieve newly created id and write to correct row in Google Sheet
-for (var i = 0; i < dataArray.length; i++) {
+ // Loop through payload to post to Webflow then retrieve newly created id and write to correct row in Google Sheet
+ for (var i = 0; i < sheet.length; i++) {
   var postWebflowOptions = {
     "headers" : webflowHeaders,
     "method" : "post",
-    "payload" : JSON.stringify(dataArray[i]),
+    "payload" : JSON.stringify(output[i]),
     "muteHttpExceptions" : true
-   };
- 
+  };
   
  // Store new item data
  var product = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
   
  // Store product ID
  var productId = JSON.parse(product)["_id"];
+   
+ Logger.log(productId);
   
- // Find correct row and write product ID to item-id column
-                                 
- SpreadsheetApp.getActive
- var ss = SpreadsheetApp.getActiveSpreadsheet();
- var sheet = ss.getActiveSheet();
- var dataRange = sheet.getDataRange();
- var values = dataRange.getValues();
-
- for (var i = 0; i < values.length; i++) {
-   var row = "";
-   for (var j = 0; j < values[i].length; j++) {     
-     if (values[i][j] == buy) {
-       row = values[i][j+1];
-       Logger.log(row);
-       Logger.log(i); // This is your row number
-    }
-   }    
-  }  
- };    
+ // Find correct row and write product ID to item-id column                                
+// SpreadsheetApp.getActive
+// var ss = SpreadsheetApp.getActiveSpreadsheet();
+// var sheet = ss.getActiveSheet();
+// var dataRange = sheet.getDataRange();
+// var values = dataRange.getValues();
+//
+// for (var i = 0; i < values.length; i++) {
+//   var row = "";
+//   for (var j = 0; j < values[i].length; j++) {     
+//     if (values[i][j] == buy) {
+//       row = values[i][j+1];
+//       Logger.log(row);
+//       Logger.log(i); // This is your row number
+//    }
+//   }    
+//  }  
+// };    
   // Copy new item-id to Google Sheet row
   
-}
+ }
+};
 
 
 
@@ -208,6 +243,7 @@ for (var i = 0; i < dataArray.length; i++) {
 
 // Runs when a user changes the selection in a spreadsheet
 function onEdit() {
+  
   Logger.log('Hello');
 }
 
