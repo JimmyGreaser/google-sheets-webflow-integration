@@ -100,7 +100,7 @@ function getCJProducts() {
     // Create object and extract attribute values
     var product = {
       "fields" : {
-      "item-id" : "replace",
+      "item-id" : "not-in-webflow",
       "name": products[i].getChild("name").getValue(),
       "price" : products[i].getChild("price").getValue(),
       "buy" : products[i].getChild("buy-url").getValue(),
@@ -166,11 +166,20 @@ function postSheetToWebflow() {
  
  // Remove header
  sheet.splice(0,1);
+  
+ var spliceIterations = sheet.length;
+  
+  // Remove rows with item-id !== not-in-webflow
+  // Any product with a valid item-id is already in Webflow and should be removed to avoid duplicates
+  while(spliceIterations--) {
+    
+   if (sheet[spliceIterations][0] !== 'not-in-webflow') {
+    sheet.splice(spliceIterations,1);
+   }
+    
+  };
  
- // Array of arrays
- Logger.log(sheet);
- 
- sheetIterations = sheet.length;
+ var sheetIterations = sheet.length;
   
  // Loop through values
  // Webflow schema is name, slug, _archived, _draft, price, buy, image, gender, featured - will change if you update Webflow CMS
@@ -192,44 +201,42 @@ function postSheetToWebflow() {
    // Push object to output array
    output.push(product);
  }
+  
+ Logger.log(output.length);
+    
+ var outputIterations = output.length;  
+ var ss = SpreadsheetApp.getActiveSheet().getDataRange().getValues(); 
+ ss.splice(0,1);
+ var ssIterations = ss.length;
 
  // Loop through payload to post to Webflow then retrieve newly created id and write to correct row in Google Sheet
- for (var i = 0; i < sheet.length; i++) {
-  var postWebflowOptions = {
+ for (var i = 0; i < outputIterations; i++) {
+   var postWebflowOptions = {
     "headers" : webflowHeaders,
     "method" : "post",
     "payload" : JSON.stringify(output[i]),
     "muteHttpExceptions" : true
-  };
+   };
   
- // Store new item data
- var product = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
-  
- // Store product ID
- var productId = JSON.parse(product)["_id"];
+   // Store new item data
+   var product = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
    
- Logger.log(productId);
-  
- // Find correct row and write product ID to item-id column                                
-// SpreadsheetApp.getActive
-// var ss = SpreadsheetApp.getActiveSpreadsheet();
-// var sheet = ss.getActiveSheet();
-// var dataRange = sheet.getDataRange();
-// var values = dataRange.getValues();
-//
-// for (var i = 0; i < values.length; i++) {
-//   var row = "";
-//   for (var j = 0; j < values[i].length; j++) {     
-//     if (values[i][j] == buy) {
-//       row = values[i][j+1];
-//       Logger.log(row);
-//       Logger.log(i); // This is your row number
-//    }
-//   }    
-//  }  
-// };    
-  // Copy new item-id to Google Sheet row
-  
+   Logger.log(product);
+   
+   // Store product ID
+   var productId = JSON.parse(product)["_id"];
+   
+   Logger.log(productId);
+   
+   // Find correct row and write product ID to first column
+   
+   var outputReference = i;
+   
+   for (j = 0; j < ssIterations; j++) {
+     if(ss[j][3] == output[Math.trunc(outputReference)]['fields']['buy']){
+       SpreadsheetApp.getActiveSheet().getRange('A' + (j+2)).setValue(productId);
+     }
+   }
  }
 };
 
