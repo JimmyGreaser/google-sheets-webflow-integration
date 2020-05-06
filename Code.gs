@@ -11,7 +11,7 @@ var webflowProductCollectionId = '5eab44282ae07d9d2a95cfe4';
 // Keyword queries
 var cjQuery1 = '+jeans-denim';
 var cjQuery2 = '+jeans -size -shirt -hat -beanie';
-var pepperjamQuery = 'jeans';
+var pepperjamQuery = 'jeans -size';
 
 // CJ Variables
 var hudsonJeans = '4909284'; // Working
@@ -29,7 +29,7 @@ var bebe = '9398';
 var cjGetUrl = 'https://product-search.api.cj.com/v2/product-search'
   + '?website-id=' + pid
   + '&advertiser-ids=' + ssense
-  + '&keywords=' + kQuery2
+  + '&keywords=' + cjQuery2
   + '&serviceable-area=us'
   + '&records-per-page=150'
   + '&currency=usd'
@@ -41,8 +41,9 @@ var pepperjamGetUrl = 'https://api.pepperjamnetwork.com/'
   + 'publisher/creative/product'
   + '?apiKey=' + pepperjamToken
   + '&format=json'
-  + '&programIds=' + bebe;
-  + '&keywords=' + pepperjamQuery
+  // + '&programIds=' + bebe;
+  + '&keywords=' + pepperjamQuery;
+var impactGetUrl = '';
 var webflowPostUrl = 'https://api.webflow.com/collections/'
  + webflowProductCollectionId
  + '/items'
@@ -83,6 +84,10 @@ function onOpen() {
   ui.createMenu('API Menu')
       .addItem('Import CJ Products','getCJProducts')
       .addSeparator()
+      .addItem('Import Pepperjam Products', 'getPepperjamProducts')
+      .addSeparator()
+      .addItem('Import Impact Products', 'getImpactProducts')
+      .addSeparator()
       .addItem('Create Webflow Items', 'postSheetToWebflow')
       .addToUi();
 }
@@ -122,6 +127,7 @@ function getCJProducts() {
  }
    
  // Filter duplicate products by image URL
+ // Also consider filtering out products that share the first X characters
  var filteredOutput = removeDuplicates(output, "image");
           
  // Headings in the column order that you wish the table to appear.
@@ -159,11 +165,13 @@ function getPepperjamProducts() {
   // Parse
   var document = JSON.parse(json); //parse
   
-  Logger.log(document);
-    
+  var products = [];
+        
   // Nav to part of tree and get values
-  var products = document.getRootElement().getChild("products").getChildren();
-      
+  products = document.data.map(dataItem => {return dataItem});
+
+  Logger.log(products);
+        
   var productIterations = products.length;
   
   // Loop through values
@@ -171,10 +179,10 @@ function getPepperjamProducts() {
     // Create object and extract attribute values
     var product = {
       "item-id" : "not-in-webflow",
-      "name": products[i].getChild("name").getValue(),
-      "price" : products[i].getChild("price").getValue(),
-      "buy" : products[i].getChild("buy-url").getValue(),
-      "image" : products[i].getChild("image-url").getValue(),
+      "name": products[i].name,
+      "price" : products[i].price,
+      "buy" : products[i]['buy_url'],
+      "image" : products[i]['image_url'],
       "gender" : "EDIT",
     }
     // Push object to output array
@@ -182,7 +190,10 @@ function getPepperjamProducts() {
  }
    
  // Filter duplicate products by image URL
+ // Also consider filtering out products that share the first X characters
  var filteredOutput = removeDuplicates(output, "image");
+  
+ Logger.log(filteredOutput.length);
           
  // Headings in the column order that you wish the table to appear.
  var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender'];
@@ -206,14 +217,67 @@ function getPepperjamProducts() {
  }
 };
 
-// Impact import
+// Import products from Impact and write to Google Sheets. Query products through the global variable - impactGetUrl.
+function getImpactProducts() {
+  
+  // Product data array
+  var output = [];
+  
+  // Fetch data
+  var json = UrlFetchApp.fetch(pepperjamGetUrl, pepperjamOptions).getContentText();
+        
+  // Parse
+  var document = JSON.parse(json); //parse
+  
+  var products = [];
+        
+  // Nav to part of tree and get values
+  products = document.data.map(dataItem => {return dataItem});
 
+  Logger.log(products);
+        
+  var productIterations = products.length;
+  
+  // Loop through values
+  for (var i = 0; i < productIterations; i++) {
+    // Create object and extract attribute values
+    var product = {
+      "item-id" : "not-in-webflow",
+      "name": products[i].name,
+      "price" : products[i].price,
+      "buy" : products[i]['buy_url'],
+      "image" : products[i]['image_url'],
+      "gender" : "EDIT",
+    }
+    // Push object to output array
+    output.push(product);
+ }
+   
+ // Filter duplicate products by image URL
+ // Also consider filtering out products that share the first X characters
+ var filteredOutput = removeDuplicates(output, "image");
+          
+ // Headings in the column order that you wish the table to appear.
+ var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender'];
+ var outputRows = [];
 
-// Update from affiliate market data
-
-
-
-
+ // Loop through each member
+ filteredOutput.forEach(function(output) {
+   // Add a new row to the output mapping each header to the corresponding member value
+   outputRows.push(headings.map(function(heading) {
+     return output[heading] || '';
+   }));
+ });
+  
+ var outputIterations = outputRows.length;
+    
+ // Write to sheets at first blank row
+ for (var i = 0; i < outputIterations; i++) {
+   var ss = SpreadsheetApp.getActive();
+   var sheet = ss.getSheetByName("product-sheet");
+   sheet.appendRow(outputRows[i]);
+ }
+};
 
 
 
@@ -306,57 +370,13 @@ function postSheetToWebflow() {
 };
 
 
-
-
-
-
-
-
-
-// Runs when a user changes the selection in a spreadsheet
+// Edit Webflow Item
 function onEdit() {
-  
-  Logger.log('Hello');
-}
-
-
-function updateWebflowItem() {
-  // Update products in Webflow
-  
+  Logger.log(SpreadsheetApp.getActiveSheet().getActiveCell().getValue());
+  Logger.log(SpreadsheetApp.getActiveSheet().getActiveCell());
 }
 
 function deleteWebflowItem() {
  // Delete products in Webflow
   
 }
-
-
-function clearData() {
-  
- var ss = SpreadsheetApp.getActiveSpreadsheet();
- var sheet = ss.getActiveSheet();
- var dataRange = sheet.getDataRange();
-  
-  Logger.log(ss);
-  Logger.log(sheet);
-  Logger.log(dataRange);
-  
-  // clear out the matches and output sheets
-  var lastRow = ss.getLastRow();
-  if (lastRow > 1) {
-    sheet.getRange(2,1,lastRow-1,1).clearContent();
-  }
-}
-
-function removeDuplicates(myArr, prop) {
-    return myArr.filter((obj, pos, arr) => {
-        return arr.map(mapObj => mapObj[prop]).indexOf(obj[prop]) === pos
-    })
-}
-
-
-//ScriptApp.newTrigger('getGoogleAnalyticsReport')
-//  .timeBased()
-//  .atHour(1)
-//  .everyDays(1) // Frequency is required if you are using atHour()
-//  .create();
