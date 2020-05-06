@@ -2,13 +2,16 @@
 
 // Authentication
 var cjToken = '7n2qy7a10660seaf3d810dakkz';
+var pepperjamToken = 'e1deaf5846796c4dd695310fb106b90e88062719f020c91ca2294664ae232cae';
+var pepperjamVersion = '20120402';
 var pid = '9210517';
 var webflowToken = '5fe4061500bb0c723f15518546b6e9d3c5ee5ea6e5b32d84f7d607371353c68a';
 var webflowProductCollectionId = '5eab44282ae07d9d2a95cfe4';
 
 // Keyword queries
-var kQuery1 = '+jeans-denim';
-var kQuery2 = '+jeans -size -shirt -hat -beanie';
+var cjQuery1 = '+jeans-denim';
+var cjQuery2 = '+jeans -size -shirt -hat -beanie';
+var pepperjamQuery = 'jeans';
 
 // CJ Variables
 var hudsonJeans = '4909284'; // Working
@@ -19,17 +22,27 @@ var ssense = '2125713'; // Working
 var warpWeft = '5110321'; // Not working
 var zaful = '4777179'; // Working
 
+// Pepperjam Variables
+var bebe = '9398';
+
 // URLs
 var cjGetUrl = 'https://product-search.api.cj.com/v2/product-search'
   + '?website-id=' + pid
   + '&advertiser-ids=' + ssense
   + '&keywords=' + kQuery2
   + '&serviceable-area=us'
-  + '&records-per-page=10'
+  + '&records-per-page=150'
   + '&currency=usd'
   + '&high-sale-price=500'
   + '&low-sale-price=60'
   + '&sort-by=price';
+var pepperjamGetUrl = 'https://api.pepperjamnetwork.com/'
+  + pepperjamVersion + '/'
+  + 'publisher/creative/product'
+  + '?apiKey=' + pepperjamToken
+  + '&format=json'
+  + '&programIds=' + bebe;
+  + '&keywords=' + pepperjamQuery
 var webflowPostUrl = 'https://api.webflow.com/collections/'
  + webflowProductCollectionId
  + '/items'
@@ -50,11 +63,14 @@ var cjOptions = {
     "headers" : cjHeaders,
     "method" : "GET",
 };
+var pepperjamOptions = {
+  "method" : "GET"
+};
 var webflowGetOptions = {
    "headers" : webflowHeaders,
    "method" : "get",
    "muteHttpExceptions" : true
-}
+};
 
 
 
@@ -81,46 +97,102 @@ function getCJProducts() {
   
   // Fetch data
   var xml = UrlFetchApp.fetch(cjGetUrl, cjOptions).getContentText();
-  
-  Logger.log(xml);
-    
+      
   // Parse
   var document = XmlService.parse(xml); //parse
     
   // Nav to part of tree and get values
   var products = document.getRootElement().getChild("products").getChildren();
-    
-  // Filter duplicate products by image URL
-  
-  
+      
   var productIterations = products.length;
   
   // Loop through values
   for (var i = 0; i < productIterations; i++) {
     // Create object and extract attribute values
     var product = {
-      "fields" : {
       "item-id" : "not-in-webflow",
       "name": products[i].getChild("name").getValue(),
       "price" : products[i].getChild("price").getValue(),
       "buy" : products[i].getChild("buy-url").getValue(),
       "image" : products[i].getChild("image-url").getValue(),
       "gender" : "EDIT",
-      }
     }
     // Push object to output array
     output.push(product);
  }
-        
+   
+ // Filter duplicate products by image URL
+ var filteredOutput = removeDuplicates(output, "image");
+          
  // Headings in the column order that you wish the table to appear.
  var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender'];
  var outputRows = [];
 
  // Loop through each member
- output.forEach(function(output) {
+ filteredOutput.forEach(function(output) {
    // Add a new row to the output mapping each header to the corresponding member value
    outputRows.push(headings.map(function(heading) {
-     return output['fields'][heading] || '';
+     return output[heading] || '';
+   }));
+ });
+  
+ var outputIterations = outputRows.length;
+    
+ // Write to sheets at first blank row
+ for (var i = 0; i < outputIterations; i++) {
+   var ss = SpreadsheetApp.getActive();
+   var sheet = ss.getSheetByName("product-sheet");
+   sheet.appendRow(outputRows[i]);
+ }  
+};
+
+
+// Import products from Pepperjam and write to Google Sheets. Query products through the global variable - pepperjamGetUrl.
+function getPepperjamProducts() {
+  
+  // Product data array
+  var output = [];
+  
+  // Fetch data
+  var json = UrlFetchApp.fetch(pepperjamGetUrl, pepperjamOptions).getContentText();
+        
+  // Parse
+  var document = JSON.parse(json); //parse
+  
+  Logger.log(document);
+    
+  // Nav to part of tree and get values
+  var products = document.getRootElement().getChild("products").getChildren();
+      
+  var productIterations = products.length;
+  
+  // Loop through values
+  for (var i = 0; i < productIterations; i++) {
+    // Create object and extract attribute values
+    var product = {
+      "item-id" : "not-in-webflow",
+      "name": products[i].getChild("name").getValue(),
+      "price" : products[i].getChild("price").getValue(),
+      "buy" : products[i].getChild("buy-url").getValue(),
+      "image" : products[i].getChild("image-url").getValue(),
+      "gender" : "EDIT",
+    }
+    // Push object to output array
+    output.push(product);
+ }
+   
+ // Filter duplicate products by image URL
+ var filteredOutput = removeDuplicates(output, "image");
+          
+ // Headings in the column order that you wish the table to appear.
+ var headings = ['item-id', 'name', 'price', 'buy', 'image', 'gender'];
+ var outputRows = [];
+
+ // Loop through each member
+ filteredOutput.forEach(function(output) {
+   // Add a new row to the output mapping each header to the corresponding member value
+   outputRows.push(headings.map(function(heading) {
+     return output[heading] || '';
    }));
  });
   
@@ -132,14 +204,7 @@ function getCJProducts() {
    var sheet = ss.getSheetByName("product-sheet");
    sheet.appendRow(outputRows[i]);
  }
-  
- Logger.log('Import successful');
-  
 };
-
-
-// Pepperjam/Ascend import
-
 
 // Impact import
 
@@ -281,6 +346,12 @@ function clearData() {
   if (lastRow > 1) {
     sheet.getRange(2,1,lastRow-1,1).clearContent();
   }
+}
+
+function removeDuplicates(myArr, prop) {
+    return myArr.filter((obj, pos, arr) => {
+        return arr.map(mapObj => mapObj[prop]).indexOf(obj[prop]) === pos
+    })
 }
 
 
