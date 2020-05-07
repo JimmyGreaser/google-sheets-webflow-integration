@@ -28,10 +28,11 @@ var bebe = '9398';
 // URLs
 var cjGetUrl = 'https://product-search.api.cj.com/v2/product-search'
   + '?website-id=' + pid
-  + '&advertiser-ids=' + ssense
+  + '&advertiser-ids=joined' // + zaful
   + '&keywords=' + cjQuery2
   + '&serviceable-area=us'
-  + '&records-per-page=150'
+  + '&records-per-page=999'
+  + '&page-number=6'
   + '&currency=usd'
   + '&high-sale-price=500'
   + '&low-sale-price=60'
@@ -102,6 +103,8 @@ function getCJProducts() {
   
   // Fetch data
   var xml = UrlFetchApp.fetch(cjGetUrl, cjOptions).getContentText();
+  
+  Logger.log(xml);
       
   // Parse
   var document = XmlService.parse(xml); //parse
@@ -116,7 +119,7 @@ function getCJProducts() {
     // Create object and extract attribute values
     var product = {
       "item-id" : "not-in-webflow",
-      "name": products[i].getChild("name").getValue(),
+      "name": products[i].getChild("name").getValue().replace(/[,.]/g,'').replace('/',''),
       "price" : products[i].getChild("price").getValue(),
       "buy" : products[i].getChild("buy-url").getValue(),
       "image" : products[i].getChild("image-url").getValue(),
@@ -179,7 +182,7 @@ function getPepperjamProducts() {
     // Create object and extract attribute values
     var product = {
       "item-id" : "not-in-webflow",
-      "name": products[i].name,
+      "name": products[i].name.replace(/[,.]/g,'').replace('/',''),
       "price" : products[i].price,
       "buy" : products[i]['buy_url'],
       "image" : products[i]['image_url'],
@@ -217,7 +220,8 @@ function getPepperjamProducts() {
  }
 };
 
-// Import products from Impact and write to Google Sheets. Query products through the global variable - impactGetUrl.
+// Import products from Impact and write to Google Sheets. Query products through the global variable - impactGetUrl
+// WAITING ON DEVELOPER ACCOUNT REVIEW
 function getImpactProducts() {
   
   // Product data array
@@ -284,6 +288,7 @@ function getImpactProducts() {
 // WEBFLOW -------------------------------
  
 
+// Not able to upload more than about 80 products it seems. It's a problem because it erases the item-id for all of the products it doesn't upload
 // Post Google Sheets data to Weblow product collection
 function postSheetToWebflow() {
   
@@ -349,8 +354,10 @@ function postSheetToWebflow() {
   
    // Store new item data
    var product = UrlFetchApp.fetch(webflowPostUrl, postWebflowOptions);
-   
-   Logger.log(product);
+      
+   if (product.message == 'Rate limit hit') {
+     return
+   }
    
    // Store product ID
    var productId = JSON.parse(product)["_id"];
@@ -371,12 +378,62 @@ function postSheetToWebflow() {
 
 
 // Edit Webflow Item
-function onEdit() {
-  Logger.log(SpreadsheetApp.getActiveSheet().getActiveCell().getValue());
-  Logger.log(SpreadsheetApp.getActiveSheet().getActiveCell());
+function specialOnEdit(e) {
+  
+  // Get row and column that edit occurred on
+  var row = e.range.getRow();
+  var col = e.range.getColumn();
+  
+  // Get array of row where edit occurred
+  var sht = SpreadsheetApp.getActiveSheet();
+  var rng = sht.getRange(row, 1, 1, 6)
+  var rangeArray = rng.getValues();
+  
+  var product = {
+     "fields" : {
+     "name": rangeArray[0][1],
+     "slug": rangeArray[0][0].replace(/\s+/g, '-').replace(/,/g, '').toLowerCase(),
+     "_archived": false,
+     "_draft": false,
+     "price" : rangeArray[0][2],
+     "buy" : rangeArray[0][3],
+     "image" : rangeArray[0][4],
+     "gender" : rangeArray[0][5],
+     "featured" : false
+     }
+   }
+  
+  // Check for item-id and post to Webflow
+  if (rangeArray[0][0] !== 'not-in-webflow') {
+     // Post to active cell value to Webflow
+     var webflowPutUrl = 'https://api.webflow.com/collections/' + webflowProductCollectionId + '/items/' + rangeArray[0][0];
+     var webflowPutOptions = {
+       "headers" : webflowHeaders,
+       "method" : "get",
+       "payload" : JSON.stringify(product[0]),
+       "muteHttpExceptions" : true
+     };
+     Logger.log(UrlFetchApp.fetch(webflowPutUrl, webflowPutOptions));
+  }
 }
 
+
+// Delete is not possible, no trigger
 function deleteWebflowItem() {
  // Delete products in Webflow
   
+}
+
+
+
+
+
+
+
+// ASSIST FUNCTIONS -----------------------------------
+
+function removeDuplicates(myArr, prop) {
+    return myArr.filter((obj, pos, arr) => {
+        return arr.map(mapObj => mapObj[prop]).indexOf(obj[prop]) === pos;
+    });
 }
